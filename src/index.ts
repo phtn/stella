@@ -21,12 +21,9 @@ program
   .description("Start a chat session with a Cohere Command model")
   .option("-m, --model <model>", "Specify the model to use", "command")
   .option("-k, --api-key <key>", "Your Cohere API key")
-  .action(async (options) => {
+  .action(async () => {
     try {
-      await startChat({
-        model: options.model,
-        apiKey: options.apiKey,
-      });
+      await startChat();
     } catch (error) {
       if (error instanceof Error) {
         logger.error(`Error: ${error.message}`);

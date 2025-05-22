@@ -27,7 +27,7 @@ export class ChatStreamService {
 
       for await (const chatEvent of stream) {
         if (chatEvent.type === "content-delta") {
-          const text = chatEvent.delta?.message?.content?.text || "";
+          const text = chatEvent.delta?.message?.content?.text ?? "";
           if (text) {
             yield text;
           }
