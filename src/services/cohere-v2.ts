@@ -4,14 +4,14 @@ import type { ChatMessageV2 } from "cohere-ai/api";
 const token = process.env.COHERE_API_KEY;
 const content = process.env.CHAT_INSTRUCT!;
 
-export class ChatStreamService {
+export class ChatService {
   private client: CohereClientV2;
 
   constructor() {
     this.client = new CohereClientV2({ token });
   }
 
-  async* chatStream(messages: ChatMessageV2[]): AsyncIterable<string> {
+  async *chatStream(messages: ChatMessageV2[]): AsyncIterable<string> {
     try {
       const stream = await this.client.chatStream({
         model: "command-a-03-2025",

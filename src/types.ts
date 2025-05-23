@@ -1,4 +1,5 @@
 // src/types.ts
+
 export interface ChatMessage {
   role: "USER" | "ASSISTANT";
   message: string;
@@ -25,7 +26,7 @@ export interface Conversation {
 export interface Message {
   id: number;
   conversation_id: number;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   created_at: string;
 }
@@ -36,8 +37,8 @@ export interface DatabaseResult {
 }
 
 export enum MenuAction {
-  NEW_CHAT = 'new_chat',
-  CONTINUE = 'continue',
-  VIEW_RECENT = 'view_recent',
-  MANAGE = 'manage'
+  NEW_CHAT = "new_chat",
+  CONTINUE = "continue",
+  VIEW_RECENT = "view_recent",
+  MANAGE = "manage",
 }

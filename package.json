@@ -1,26 +1,35 @@
 {
-  "name": "coherence",
+  "name": "stellar",
   "version": "1.1.0",
   "description": "Powered by Cohere",
-  "main": "dist/index.js",
+  "main": "./dist/es/index.js",
   "files": [
     "dist"
   ],
-  "bin": {
-    "stellar": "./dist/index.js"
-  },
+  "bin": "./dist/bin/index.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
+      "types": "./dist/es/index.d.ts",
+      "default": "./dist/es/index.js"
+    },
+    "./types": {},
+    "./commands/chat": {},
+    "./services/cohere-v2": {},
+    "./services/db": {},
+    "./services/elevenlabs": {},
+    "./services/fish": {},
+    "./utils/helpers": {},
+    "./utils/logger": {},
+    "./utils/spinner": {},
+    "./utils/theme": {}
   },
   "type": "module",
   "scripts": {
-    "build": "bunchee --env=COHERE_API_KEY,FISH_AUDIO_API_KEY,REFERENCE_ID,CHAT_INSTRUCT",
-    "start": "bun run ./dist/index.js chat",
+    "build": "bunchee --env=COHERE_API_KEY,FISH_AUDIO_API_KEY,REFERENCE_ID,CHAT_INSTRUCT,PICOVOICE_ACCESS_KEY",
+    "start": "bun run ./dist/es/index.js chat",
     "dev": "bun run --watch src/index.ts chat",
-    "lint:fix": "bun run lint.mjs --fix"
+    "lint:fix": "bun run lint.mjs --fix",
+    "stt:scr": "bun run ./src/utils/scriber.ts"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.0.1",
@@ -28,6 +37,7 @@
     "@eslint/js": "^9.27.0",
     "@inquirer/prompts": "^3.3.0",
     "@msgpack/msgpack": "^3.1.1",
+    "@picovoice/leopard-node": "^2.0.6",
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.32.1",
     "@typescript-eslint/parser": "^8.32.1",
@@ -36,6 +46,7 @@
     "commander": "^11.1.0",
     "dotenv": "^16.5.0",
     "eslint-plugin-unused-imports": "^4.1.4",
+    "node-record-lpcm16": "^1.0.1",
     "ora": "^7.0.1"
   },
   "devDependencies": {
@@ -49,5 +60,7 @@
   },
   "peerDependencies": {
     "typescript": "^5"
-  }
+  },
+  "module": "./dist/es/index.js",
+  "types": "./dist/es/index.d.ts"
 }

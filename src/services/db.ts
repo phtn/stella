@@ -4,7 +4,7 @@ import { mkdir } from "node:fs/promises";
 import type { ChatMessageV2 } from "cohere-ai/api";
 import type { Conversation, Message } from "@/types";
 
-export class DatabaseService {
+export class DataService {
   private readonly db: Database;
 
   constructor() {

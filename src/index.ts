@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { startChat } from "./commands/chat.js";
-import { logger } from "./utils/logger.js";
-import { theme } from "./utils/theme.js";
+import { startChat } from "./commands/chat";
+import { logger } from "./utils/logger";
+import { theme } from "./utils/theme";
 
 // Create CLI program
 const program = new Command();

@@ -62,11 +62,11 @@ const reference_id = process.env.REFERENCE_ID;
 const WS_URL = "wss://api.fish.audio/v1/tts/live";
 const POLLING_INTERVAL = 10; // ms
 
-export class FishVoiceService {
+export class TTS_Service {
   private static readonly BASE_URL = "https://api.fish.audio";
 
   async getModels(id: string): Promise<ModelResponse> {
-    const url = `${FishVoiceService.BASE_URL}/model/${id}`;
+    const url = `${TTS_Service.BASE_URL}/model/${id}`;
     const response = await fetch(url, {
       method: "GET",
       headers: {
@@ -82,7 +82,7 @@ export class FishVoiceService {
   }
 
   async generateSpeech(text: string): Promise<Buffer> {
-    const url = `${FishVoiceService.BASE_URL}/v1/tts`;
+    const url = `${TTS_Service.BASE_URL}/v1/tts`;
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -106,7 +106,9 @@ export class FishVoiceService {
     return Buffer.from(audioData);
   }
 
-  async *streamSpeech(textStream: AsyncIterable<string>): AsyncGenerator<Buffer> {
+  async *streamSpeech(
+    textStream: AsyncIterable<string>,
+  ): AsyncGenerator<Buffer> {
     const ws = new WebSocket(WS_URL, {
       headers: { Authorization: `Bearer ${key}` },
     });
@@ -132,7 +134,7 @@ export class FishVoiceService {
       } else {
         console.error(
           "WebSocket not open/connecting, and streaming not finished. Exiting audio stream.",
-          ws.readyState
+          ws.readyState,
         );
         break;
       }
@@ -144,7 +146,7 @@ export class FishVoiceService {
   private setupMessageHandler(
     ws: WebSocket,
     audioQueue: Buffer[],
-    onFinish: () => void
+    onFinish: () => void,
   ): void {
     ws.on("message", (data: Buffer) => {
       try {
@@ -195,7 +197,7 @@ export class FishVoiceService {
       ws.on("error", reject);
       ws.on("close", (code: number, reason: string) => {
         console.log(
-          `Fish Audio WebSocket closed with code ${code} and reason: ${reason}`
+          `Fish Audio WebSocket closed with code ${code} and reason: ${reason}`,
         );
       });
     });
@@ -203,7 +205,7 @@ export class FishVoiceService {
 
   private async processTextStream(
     ws: WebSocket,
-    textStream: AsyncIterable<string>
+    textStream: AsyncIterable<string>,
   ): Promise<void> {
     try {
       for await (const text of textStream) {
