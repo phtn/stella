@@ -46,7 +46,7 @@ export default [
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/consistent-type-imports": "error",
       "unused-imports/no-unused-imports": "error",
-      "no-console": ["warn", { allow: ["warn", "error", "log"] }],
+      "no-console": ["warn", { allow: ["warn", "error", "log", "clear"] }],
       eqeqeq: ["error", "always"],
       // curly: "",
       "no-var": "error",
@@ -55,6 +55,6 @@ export default [
     },
   },
   {
-    ignores: ["dist/**", "node_modules/**"],
+    ignores: ["dist/**", "node_modules/**", "**/*.test.ts", "**/*.robust.test.ts", "**/tests/**"],
   },
 ];

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
+
 import { Command } from "commander";
 import { startChat } from "./commands/chat";
 import { logger } from "./utils/logger";
 import { theme } from "./utils/theme";
+
+// await initializeVoiceService();
 
 // Create CLI program
 const program = new Command();

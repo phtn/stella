@@ -1,31 +1,37 @@
-import { Database } from "bun:sqlite";
+import Database from "bun:sqlite";
 import path from "path";
 import { mkdir } from "node:fs/promises";
-import type { ChatMessageV2 } from "cohere-ai/api";
-import type { Conversation, Message } from "@/types";
+import type { Message, Conversation } from "@/types";
 
 export class DataService {
   private readonly db: Database;
 
-  constructor() {
-    const dbDir: string = path.join(process.env.HOME ?? "~", ".stella");
-    const dbPath: string = path.join(dbDir, "conversations.db");
+  constructor(customDbPath?: string) {
+    if (customDbPath !== null) {
+      // Use custom path (for testing)
+      this.db = new Database(customDbPath);
+    } else {
+      // Use default path
+      const dbDir: string = path.join(process.env.HOME ?? "~", ".stella");
+      const dbPath: string = path.join(dbDir, "conversations.db");
 
-    // Create .stella directory if it doesn't exist
-    try {
-      mkdir(dbDir, { recursive: true }).catch(console.error);
-    } catch (error) {
-      // Only ignore EEXIST error
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        error.code !== "EEXIST"
-      ) {
-        throw error;
+      // Create .stella directory if it doesn't exist
+      try {
+        mkdir(dbDir, { recursive: true }).catch(console.error);
+      } catch (error) {
+        // Only ignore EEXIST error
+        if (
+          error instanceof Error &&
+          "code" in error &&
+          error.code !== "EEXIST"
+        ) {
+          throw error;
+        }
       }
+
+      this.db = new Database(dbPath);
     }
 
-    this.db = new Database(dbPath);
     this.init();
   }
 
@@ -44,7 +50,7 @@ export class DataService {
       CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         conversation_id INTEGER NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
         content TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
@@ -60,7 +66,7 @@ export class DataService {
     return Number(result.lastInsertRowid);
   }
 
-  public saveMessage(conversationId: number, message: ChatMessageV2): void {
+  public saveMessage(conversationId: number, message: Message): void {
     const stmt = this.db.prepare(
       "INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)",
     );
@@ -91,14 +97,14 @@ export class DataService {
     return stmt.all() as Conversation[];
   }
 
-  public getConversationMessages(conversationId: number): ChatMessageV2[] {
+  public getConversationMessages(conversationId: number): Message[] {
     const stmt = this.db.prepare(
       "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY created_at",
     );
     const messages = stmt.all(conversationId) as Message[];
 
     return messages.map((msg) => ({
-      role: msg.role as "user" | "assistant",
+      role: msg.role as "user" | "assistant" | "system",
       content: msg.content,
     }));
   }

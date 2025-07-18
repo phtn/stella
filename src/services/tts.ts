@@ -1,61 +1,6 @@
+import type { ModelResponse, WebSocketState, WSMessage } from "@/types";
 import * as msgpack from "@msgpack/msgpack";
 import WebSocket from "ws";
-
-type WebSocketState = 0 | 1 | 2 | 3; // Numeric values for WebSocket states
-
-interface ModelAuthor {
-  _id: string;
-  nickname: string;
-  avatar: string;
-}
-
-interface ModelItem {
-  _id: string;
-  type: string;
-  title: string;
-  description: string;
-  cover_image: string;
-  train_mode: string;
-  state: string;
-  tags: string[];
-  samples: string[];
-  created_at: string;
-  updated_at: string;
-  languages: string[];
-  visibility: string;
-  lock_visibility: boolean;
-  like_count: number;
-  mark_count: number;
-  shared_count: number;
-  task_count: number;
-  unliked: boolean;
-  liked: boolean;
-  marked: boolean;
-  author: ModelAuthor;
-}
-
-interface ModelResponse {
-  total: number;
-  items: ModelItem[];
-}
-
-export interface ModelListParams {
-  page_size?: number;
-  page_number?: number;
-  title?: string;
-  tag?: string[] | string;
-  self?: boolean;
-  author_id?: string;
-  language?: string[] | string;
-  title_language?: string[] | string;
-  sort_by?: string;
-}
-
-interface WSMessage {
-  event: string;
-  audio?: Uint8Array;
-  message?: string;
-}
 
 const key = process.env.FISH_AUDIO_API_KEY;
 const reference_id = process.env.REFERENCE_ID;
@@ -88,13 +33,14 @@ export class TTS_Service {
       headers: {
         Authorization: `Bearer ${key}`,
         "content-type": "application/msgpack",
-        model: "speech-1.5",
+        model: "speech-1.6",
       },
       body: msgpack.encode({
         reference_id,
         text,
-        temperature: 0.3,
+        temperature: 0.4,
         top_p: 0.2,
+        normalize: false,
       }),
     });
 

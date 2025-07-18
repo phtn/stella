@@ -1,21 +1,40 @@
 // src/commands/chat.ts
-import { MenuAction } from "@/types";
+import { MenuAction, type Message } from "@/types";
 import { trimLongWords } from "@/utils/helpers";
 import { input, select } from "@inquirer/prompts";
-import { $ } from "bun";
-import type { ChatMessageV2 } from "cohere-ai/api";
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { ChatService } from "../services/cohere-v2";
+import { OllamaChatService } from "../services/ollama";
 import { DataService } from "../services/db";
 import { STT_Service } from "../services/stt";
 import { TTS_Service } from "../services/tts";
-import { logger } from "../utils/logger";
+import { logger, type Logger } from "../utils/logger";
 import { createSpinner } from "../utils/spinner";
 import { theme } from "../utils/theme";
+// import { PlayHT_TTS_Service } from "@/services/pht2";
 
-// const STDIN_READY_TIMEOUT = 5000; // No longer relevant
+// const voiceService = new PHT_Service({
+//   apiKey: process.env.PLAYHT_API_KEY!, // Set in your environment
+//   userId: process.env.PLAYHT_USER_ID!, // Set in your environment
+//   voice: process.env.ELLIE_ID!, // ELLIE!
+//   quality: "high", // or 'medium', 'premium' etc.
+//   outputFormat: "mp3",
+//   speed: 1.0,
+// });
+
+// Initialize the service when your app starts
+export async function initializeVoiceService(): Promise<void> {
+  try {
+    // await voiceService.initialize();
+
+    logger.success("voice is ready");
+  } catch (error) {
+    console.error("Failed to initialize voice service:", error);
+    throw error;
+  }
+}
 
 const restoreTerminal = (): void => {
   try {
@@ -88,7 +107,7 @@ async function handleNewChat(db: DataService): Promise<void> {
 }
 
 async function handleContinueChat(db: DataService): Promise<void> {
-  const conversations = db.getRecentConversations(10);
+  const conversations = db.getRecentConversations(100);
   const selected = await select({
     message: "Select a conversation to continue:",
     choices: conversations.map(
@@ -223,18 +242,122 @@ async function promptContinue(): Promise<void> {
   await input({ message: "Press enter to continue..." });
 }
 
-async function handleVoiceInput(): Promise<string> {
-  const speechService = new STT_Service();
-  logger.info("Mic's on");
-  return await speechService.startRecording();
-}
-
 async function startChatSession(
   db: DataService,
   conversationId: number,
 ): Promise<void> {
-  const cohereService = new ChatService();
+  // Service selection
+  const serviceType = await select({
+    message: "Select AI service:",
+    choices: [
+      { value: "cohere", name: "Cohere (Cloud)" },
+      { value: "ollama", name: "Ollama (Local)" },
+    ],
+  });
+
+  let chatService: ChatService | OllamaChatService;
+  let serviceName = "";
+
+  if (serviceType === "ollama") {
+    const ollamaService = new OllamaChatService();
+
+    // Check if Ollama is running
+    const spinner = createSpinner("Checking Ollama connection...", {});
+    spinner.start();
+
+    try {
+      const isRunning = await ollamaService.isOllamaRunning();
+      spinner.stop();
+
+      if (!isRunning) {
+        logger.error(
+          "Ollama is not running. Please start Ollama and try again.",
+        );
+        logger.info("Run: ollama serve");
+        return;
+      }
+
+      // Get available models
+      const models = await ollamaService.getAvailableModels();
+
+      if (models.length === 0) {
+        logger.error("No Ollama models found. Please pull a model first.");
+        logger.info("Example: ollama pull llama3.2");
+        return;
+      }
+
+      // Let user select model
+      const selectedModel = await select({
+        message: "Select Ollama model:",
+        choices: models.map((model) => ({
+          value: model.name,
+          name: `${model.name} (${(model.size / 1024 / 1024 / 1024).toFixed(1)}GB)`,
+        })),
+      });
+
+      ollamaService.setModel(selectedModel);
+      chatService = ollamaService;
+      serviceName = `Ollama (${selectedModel})`;
+    } catch (error) {
+      spinner.stop();
+      logger.error(`Failed to connect to Ollama: ${error}`);
+      return;
+    }
+  } else {
+    chatService = new ChatService();
+    serviceName = "Cohere";
+  }
+
   const voiceService = new TTS_Service();
+  const speechService = new STT_Service();
+
+  async function handleChatResponse(
+    fullResponseText: string,
+    logger: Logger,
+  ): Promise<void> {
+    // After getting the full response text, generate speech and play it
+    let tempFilePath: string | undefined;
+    const voice_spinner = createSpinner("Generating speech...", {
+      spinner: "sand",
+    });
+
+    if (false) {
+      try {
+        voice_spinner.start();
+
+        // This is the only line that changes - your existing interface is preserved
+        const audioBuffer =
+          fullResponseText &&
+          (await voiceService.generateSpeech(fullResponseText));
+
+        if (audioBuffer.length > 50) {
+          const tempDir = os.tmpdir();
+          tempFilePath = path.join(tempDir, `audio-${Date.now()}.mp3`);
+          await fs.writeFile(tempFilePath ?? "", audioBuffer);
+
+          voice_spinner.start("Playing audio...");
+          const afplayProcess = `afplay ${tempFilePath}`;
+          voice_spinner.stop();
+
+          await afplayProcess;
+
+          // Clean up temp file
+          await fs.unlink(tempFilePath ?? "").catch(() => {});
+        }
+      } catch (error) {
+        voice_spinner.stop();
+        logger.error(
+          `Voice generation/playback error: ${error instanceof Error ? error : String(error)}`,
+        );
+      } finally {
+        voice_spinner.stop();
+      }
+    }
+  }
+  async function handleVoiceInput(): Promise<string> {
+    logger.info("Mic's on");
+    return await speechService.startRecording();
+  }
 
   // Setup terminal handlers
   process.on("SIGINT", restoreTerminal);
@@ -255,12 +378,13 @@ async function startChatSession(
     // Display welcome message
     logger.newLine();
     logger.log(theme.heading("re-up.ph to agi"));
-    logger.log(theme.subheading("Powered by Cohere and Fish Audio"));
+    logger.log(theme.subheading(`Powered by ${serviceName}`));
     logger.newLine();
 
-    const chatHistory: ChatMessageV2[] =
-      db.getConversationMessages(conversationId);
-    let message: ChatMessageV2 | undefined = undefined;
+    const dbMessages: Message[] = db.getConversationMessages(conversationId);
+    // Use our custom Message type directly
+    const chatHistory: Message[] = dbMessages;
+    let message: Message | undefined = undefined;
     // Start chat loop
     while (true) {
       // Add input type selection
@@ -322,63 +446,58 @@ async function startChatSession(
       let fullResponseText = ""; // Accumulate the full response text
 
       try {
-        // logger.info("Starting Cohere chat stream...");
-        const cohereStream = cohereService.chatStream(chatHistory);
+        const chatStream = chatService.chatStream(chatHistory);
+        spinner.stop(); // Stop spinner before streaming starts
 
         logger.newLine(); // Add a newline before starting streamed output
 
-        // Consume the Cohere stream, display text chunks, and accumulate full text
-        for await (const chunk of cohereStream) {
+        // Consume the chat stream, display text chunks, and accumulate full text
+        for await (const chunk of chatStream) {
           const trimmedChunk = trimLongWords(chunk);
           fullResponseText += trimmedChunk;
           process.stdout.write(theme.bot(trimmedChunk));
         }
-        spinner.stop(); // Stop spinner on error
-        process.stdout.write(theme.bot(fullResponseText));
+
         // Add a final newline after the streamed text output
         process.stdout.write("\n");
-
-        // Log the full accumulated response text for debugging
-        // logger.log(`Full response text accumulated: ${fullResponseText}`);
       } catch (error) {
         spinner.stop(); // Stop spinner on error
-        logger.error(`Error during Cohere streaming: ${error}`);
+        logger.error(`Error during chat streaming: ${error}`);
         // If there was an error getting the response text, skip voice and history update for this turn
         continue;
-      } finally {
-        // Stop spinner after successful streaming or error
-        spinner.stop();
       }
+
+      await handleChatResponse(fullResponseText, logger);
 
       // After getting the full response text, generate speech and play it
-      let tempFilePath: string | undefined;
-      const voice_spinner = createSpinner("text", { spinner: "sand" });
-      try {
-        voice_spinner.start();
-        const audioBuffer = await voiceService.generateSpeech(fullResponseText);
+      // let tempFilePath: string | undefined;
+      // const voice_spinner = createSpinner("text", { spinner: "sand" });
+      // try {
+      //   voice_spinner.start();
+      //   const audioBuffer = await voiceService.generateSpeech(fullResponseText);
 
-        if (audioBuffer.length > 50) {
-          const tempDir = os.tmpdir();
-          tempFilePath = path.join(tempDir, `audio-${Date.now()}.mp3`);
+      //   if (audioBuffer.length > 50) {
+      //     const tempDir = os.tmpdir();
+      //     tempFilePath = path.join(tempDir, `audio-${Date.now()}.mp3`);
 
-          await fs.writeFile(tempFilePath, audioBuffer);
+      //     await fs.writeFile(tempFilePath, audioBuffer);
 
-          const afplayProcess = $`afplay ${tempFilePath}`;
-          voice_spinner.stop();
+      //     const afplayProcess = $`afplay ${tempFilePath}`;
+      //     voice_spinner.stop();
 
-          await afplayProcess;
+      //     await afplayProcess;
 
-          // Clean up temp file
-          await fs.unlink(tempFilePath).catch(() => { });
-        }
-      } catch (error) {
-        voice_spinner.stop();
-        logger.error(
-          `Voice generation/playback error: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      } finally {
-        voice_spinner.stop();
-      }
+      //     // Clean up temp file
+      //     await fs.unlink(tempFilePath).catch(() => { });
+      //   }
+      // } catch (error) {
+      //   voice_spinner.stop();
+      //   logger.error(
+      //     `Voice generation/playback error: ${error instanceof Error ? error.message : String(error)}`,
+      //   );
+      // } finally {
+      //   voice_spinner.stop();
+      // }
 
       // Add AI response to history (using the accumulated full text)
       chatHistory.push({

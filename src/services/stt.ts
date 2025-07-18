@@ -1,24 +1,33 @@
 import recorder from "node-record-lpcm16";
-import Leopard from "@picovoice/leopard-node";
 import { createSpinner } from "../utils/spinner";
 import { logger } from "../utils/logger";
+import { config } from "dotenv";
+import { join } from "path";
+import { existsSync } from "fs";
+import { transcribeInt16Array } from "./vcr";
+
+// Load environment variables from .env.local
+const envPath = join(process.cwd(), ".env.local");
+if (existsSync(envPath)) {
+  config({ path: envPath });
+  logger.info("Loaded environment variables from .env.local");
+} else {
+  logger.warning(".env.local file not found");
+}
 
 export class STT_Service {
-  private leopard: Leopard.Leopard;
   private isRecording: boolean = false;
   private readonly MIN_SAMPLES = 512; // Minimum required by Leopard
-  private readonly MAX_BUFFER_SIZE = 32768 * 100; // ~100 seconds at 16kHz
-  private cleanup: (() => void) | null = null;
 
-  constructor() {
-    // Get your access key from https://console.picovoice.ai/
-    this.leopard = new Leopard.Leopard(process.env.PICOVOICE_ACCESS_KEY!);
+  async checkThis(): Promise<string> {
+    logger.info("checked");
+    return "this";
   }
 
   async startRecording(): Promise<string> {
     return new Promise((resolve, reject) => {
       const rawChunks: Buffer[] = [];
-      const spinner = createSpinner("Recording... Press 'q' to stop", {});
+      const spinner = createSpinner("Listening...", {});
 
       spinner.start();
       this.isRecording = true;
@@ -27,6 +36,7 @@ export class STT_Service {
         sampleRate: 16000,
         channels: 1,
         audioType: "raw",
+        recorder: "sox",
       });
 
       // Create cleanup function
@@ -118,14 +128,14 @@ export class STT_Service {
     spinner.start();
 
     try {
-      const result = await this.leopard.process(audioBuffer);
+      const result = transcribeInt16Array(audioBuffer, { service: "whisper" });
       spinner.stop();
 
       // Add debug logging for the transcription result
       // logger.info(`Transcription result: "${result.transcript}"`);
 
       // Make sure we return a non-empty string
-      return result.transcript || "Sorry, could not understand the audio";
+      return result ?? "Sorry, could not understand the audio";
     } catch (error) {
       spinner.stop();
       logger.error("Transcription failed");

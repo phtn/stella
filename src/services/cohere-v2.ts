@@ -1,8 +1,10 @@
+import { gf2 } from "@/instructions/gf2";
 import { CohereClientV2, CohereError, CohereTimeoutError } from "cohere-ai";
 import type { ChatMessageV2 } from "cohere-ai/api";
+import type { Message } from "@/types";
 
 const token = process.env.COHERE_API_KEY;
-const content = process.env.CHAT_INSTRUCT!;
+const content = gf2;
 
 export class ChatService {
   private client: CohereClientV2;
@@ -11,8 +13,18 @@ export class ChatService {
     this.client = new CohereClientV2({ token });
   }
 
-  async *chatStream(messages: ChatMessageV2[]): AsyncIterable<string> {
+  // Convert our Message type to Cohere's ChatMessageV2 type
+  private convertToCohereMessages(messages: Message[]): ChatMessageV2[] {
+    return messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+  }
+
+  async *chatStream(messages: Message[]): AsyncIterable<string> {
     try {
+      const cohereMessages = this.convertToCohereMessages(messages);
+      
       const stream = await this.client.chatStream({
         model: "command-a-03-2025",
         temperature: 0.2,
@@ -21,7 +33,7 @@ export class ChatService {
             role: "system",
             content,
           },
-          ...messages,
+          ...cohereMessages,
         ],
       });
 
